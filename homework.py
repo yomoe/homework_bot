@@ -5,10 +5,10 @@ import time
 from datetime import datetime
 from http import HTTPStatus
 from os import getenv
-from pytz import timezone
 
 import requests
 import telegram
+from pytz import timezone
 from requests import RequestException
 
 PRACTICUM_TOKEN = getenv('YAP_TOKEN')
@@ -27,6 +27,7 @@ HOMEWORK_VERDICTS = {
 
 LOCAL_TIMEZONE = 'Asia/Bangkok'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TIMESTAMP_FOR_REQUESTS = int(datetime(2022, 10, 18).timestamp())
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,11 +44,7 @@ logging.basicConfig(
 
 def check_tokens():
     """Проверяет наличие токенов."""
-    if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN:
-        logging.critical('Не указаны токены')
-        raise ValueError('Не указаны токены')
-    logging.info('Токены указаны')
-    return True
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN])
 
 
 def send_message(bot, message):
@@ -104,16 +101,16 @@ def check_response(response):
 
 def parse_status(homework):
     """Парсит ответ API и возвращает сообщение для телеграма."""
-    if not homework.get('homework_name'):
-        logging.error('Не указано название домашней работы')
-        raise ValueError('Не указано название домашней работы')
     homework_name = homework.get('homework_name')
-    homework_status = homework.get('status')
-    logging.info(f'Получен статус "{homework_status}" для работы ')
-    if homework_status not in HOMEWORK_VERDICTS:
+    if not homework_name:
+        logging.error('Не указано название домашней работы')
+        raise KeyError('Не указано название домашней работы')
+    hw_status = homework.get('status')
+    logging.info(f'Получен статус "{hw_status}" для работы ')
+    if hw_status not in HOMEWORK_VERDICTS:
         logging.error('Неизвестный статус домашней работы')
         raise ValueError('Неизвестный статус домашней работы')
-    verdict = HOMEWORK_VERDICTS[homework_status]
+    verdict = HOMEWORK_VERDICTS[hw_status]
     logging.debug(f'Статус проверки работы "{homework_name}": {verdict}')
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -121,33 +118,34 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     logging.info('Программа стартует')
-    if check_tokens():
+    if not check_tokens():
+        logging.critical('Не указаны токены')
+        sys.exit('Не указаны токены')
 
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
-        timestamp = int(time.time())
-        timestamp_for_requests = int(datetime(2022, 10, 18).timestamp())
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time.time())
 
-        while True:
-            try:
-                homeworks = get_api_answer(timestamp_for_requests)
-                if check_response(homeworks):
+    while True:
+        try:
+            homeworks = get_api_answer(TIMESTAMP_FOR_REQUESTS)
+            if check_response(homeworks):
+                for homework in homeworks['homeworks']:
                     # Получаем время последнего обновления домашней работы
                     hw_date_upd = int(
                         datetime.strptime(
-                            homeworks.get('homeworks')[0].get('date_updated'),
+                            homework['date_updated'],
                             '%Y-%m-%dT%H:%M:%S%z'
                         ).astimezone(timezone(LOCAL_TIMEZONE)).timestamp())
                     if timestamp < hw_date_upd:
-                        timestamp = int(time.time())
-                        message = parse_status(homeworks.get('homeworks')[0])
-                        send_message(bot, message)
-                logging.info('Скрипт ожидает следующей проверки')
-                time.sleep(RETRY_PERIOD)
-            except Exception as error:
-                message = f'Сбой в работе программы: {error}'
-                logging.error(message)
-            finally:
-                time.sleep(RETRY_PERIOD)
+                        send_message(bot, parse_status(homework))
+                    timestamp = int(time.time())
+            logging.info('Скрипт ожидает следующей проверки')
+            time.sleep(RETRY_PERIOD)
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
+            logging.error(message)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':

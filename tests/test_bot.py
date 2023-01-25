@@ -743,8 +743,15 @@ class TestHomework:
             try:
                 homework_module.main()
             except utils.BreakInfiniteLoop:
-                pass
-
+                log_record = [
+                    record.message for record in caplog.records
+                    if self.HOMEWORK_VERDICTS[hw_status] in record.message
+                ]
+                assert log_record, (
+                    'Убедитесь, что при изменении статуса домашней работы '
+                    'бот отправляет в Telegram сообщение с вердиктом '
+                    'из переменной `HOMEWORK_VERDICTS`.'
+                )
 
     def test_docstrings(self, homework_module):
         for func in self.HOMEWORK_FUNC_WITH_PARAMS_QTY:
