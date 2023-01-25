@@ -4,11 +4,7 @@ import time
 from datetime import datetime
 from http import HTTPStatus
 from os import getenv
-try:
-    import zoneinfo
-except ImportError:
-    from backports import zoneinfo
-
+from pytz import timezone
 
 import requests
 import telegram
@@ -136,8 +132,8 @@ def main():
                         datetime.strptime(
                             homeworks.get('homeworks')[0].get('date_updated'),
                             '%Y-%m-%dT%H:%M:%S%z').astimezone(
-                            zoneinfo.ZoneInfo(LOCAL_TIMEZONE)
-                        ).timestamp())
+                            timezone(LOCAL_TIMEZONE)
+                            ).timestamp())
                     if timestamp < hw_date_upd:
                         timestamp = int(time.time())
                         message = parse_status(homeworks.get('homeworks')[0])
