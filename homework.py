@@ -131,9 +131,8 @@ def main():
                     hw_date_upd = int(
                         datetime.strptime(
                             homeworks.get('homeworks')[0].get('date_updated'),
-                            '%Y-%m-%dT%H:%M:%S%z').astimezone(
-                            timezone(LOCAL_TIMEZONE)
-                            ).timestamp())
+                            '%Y-%m-%dT%H:%M:%S%z'
+                        ).astimezone(timezone(LOCAL_TIMEZONE)).timestamp())
                     if timestamp < hw_date_upd:
                         timestamp = int(time.time())
                         message = parse_status(homeworks.get('homeworks')[0])
