@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -25,6 +26,7 @@ HOMEWORK_VERDICTS = {
 }
 
 LOCAL_TIMEZONE = 'Asia/Bangkok'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,10 +34,11 @@ logging.basicConfig(
         u'%(filename)s:%(lineno)d #%(levelname)-8s '
         u'[%(asctime)s] - %(name)s - %(message)s'
     ),
-    filename='bot.log',
-    filemode='w'
+    handlers=[
+        logging.StreamHandler(stream=sys.stdout),
+        logging.FileHandler(f'{BASE_DIR}/bot.log', mode='w')
+    ]
 )
-console = logging.StreamHandler(sys.stdout)
 
 
 def check_tokens():
@@ -106,6 +109,7 @@ def parse_status(homework):
         raise ValueError('Не указано название домашней работы')
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
+    logging.info(f'Получен статус "{homework_status}" для работы ')
     if homework_status not in HOMEWORK_VERDICTS:
         logging.error('Неизвестный статус домашней работы')
         raise ValueError('Неизвестный статус домашней работы')
