@@ -742,6 +742,7 @@ class TestHomework:
         with caplog.at_level(logging.WARN):
             try:
                 homework_module.main()
+                print(caplog.records)
             except utils.BreakInfiniteLoop:
                 log_record = [
                     record.message for record in caplog.records

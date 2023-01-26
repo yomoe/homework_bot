@@ -8,7 +8,6 @@ from os import getenv
 
 import requests
 import telegram
-from pytz import timezone
 from requests import RequestException
 
 PRACTICUM_TOKEN = getenv('YAP_TOKEN')
@@ -25,9 +24,7 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-LOCAL_TIMEZONE = 'Asia/Bangkok'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TIMESTAMP_FOR_REQUESTS = int(datetime(2022, 10, 18).timestamp())
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,16 +84,16 @@ def get_api_answer(timestamp):
 
 
 def check_response(response):
-    """Проверяет ответ API на наличие домашних работ."""
+    """Проверяет полученный ответ на корректность."""
     if not isinstance(response, dict) or not isinstance(
             response.get('homeworks'), list):
         logging.error('Неверный формат ответа API')
         raise TypeError('Неверный формат ответа API')
     if not response.get('homeworks'):
         logging.debug('Нет новых домашних работ')
-        raise KeyError('Нет новых домашних работ')
+        raise TypeError('Нет новых домашних работ')
     logging.debug('Есть домашние работы')
-    return True
+    return response.get('homeworks')[0]
 
 
 def parse_status(homework):
@@ -111,7 +108,9 @@ def parse_status(homework):
         logging.error('Неизвестный статус домашней работы')
         raise ValueError('Неизвестный статус домашней работы')
     verdict = HOMEWORK_VERDICTS[hw_status]
-    logging.debug(f'Статус проверки работы "{homework_name}": {verdict}')
+    logging.debug(
+        f'Изменился статус проверки работы "{homework_name}": {verdict}'
+    )
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -127,24 +126,18 @@ def main():
 
     while True:
         try:
-            homeworks = get_api_answer(TIMESTAMP_FOR_REQUESTS)
-            if check_response(homeworks):
-                for homework in homeworks['homeworks']:
-                    # Получаем время последнего обновления домашней работы
-                    hw_date_upd = int(
-                        datetime.strptime(
-                            homework['date_updated'],
-                            '%Y-%m-%dT%H:%M:%S%z'
-                        ).astimezone(timezone(LOCAL_TIMEZONE)).timestamp())
-                    if timestamp < hw_date_upd:
-                        send_message(bot, parse_status(homework))
-                    timestamp = int(time.time())
+            response = get_api_answer(timestamp)
+            if 'current_date' in response:
+                timestamp = response['current_date']
+            last_hw = check_response(response)
+            if last_hw:
+                send_message(bot, parse_status(last_hw))
             logging.info('Скрипт ожидает следующей проверки')
             time.sleep(RETRY_PERIOD)
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            logging.error(message)
+            logging.error(f'Сбой в работе программы: {error}')
         finally:
+            logging.info('Скрипт ожидает следующей проверки')
             time.sleep(RETRY_PERIOD)
 
 
