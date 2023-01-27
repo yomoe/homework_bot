@@ -8,11 +8,9 @@ from os import getenv
 import requests
 import telegram
 from requests import RequestException
-from telegram.error import (
-    BadRequest, NetworkError, TimedOut, Unauthorized
-)
+from telegram.error import BadRequest, NetworkError, TimedOut, Unauthorized
 
-from exceptions import APIErrors
+from exceptions import APIErrors, CustomError
 
 PRACTICUM_TOKEN = getenv('YAP_TOKEN')
 TELEGRAM_TOKEN = getenv('TG_TOKEN')
@@ -37,10 +35,7 @@ def check_tokens() -> bool:
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
-    """Отправляет сообщение в телеграм.
-    При попытке использовать TelegramError - тесты шлют в задницу и не пускают
-    далее. Поэтому пришлось использовать Exception
-    """
+    """Отправляет сообщение в телеграм."""
     try:
         logging.debug(f'Пытаемся отправить сообщение: {message}')
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
@@ -54,9 +49,9 @@ def send_message(bot: telegram.Bot, message: str) -> None:
     except Unauthorized:
         logging.critical('Проверьте токен телеграма и права бота')
         raise Unauthorized('Неверный токен телеграма или права бота')
-    except Exception as error:
-        logging.error(f'Ошибка отправки сообщения: {error}')
-        raise KeyError(f'Ошибка отправки сообщения: {error}')
+    except telegram.TelegramError as error:
+        logging.error(f'Ошибка телеграма {error}')
+        raise CustomError(f'Ошибка телеграма {error}')
 
 
 def get_api_answer(timestamp: int = 0) -> dict:
