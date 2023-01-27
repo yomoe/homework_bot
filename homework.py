@@ -139,7 +139,10 @@ def main() -> None:
             logging.info('Скрипт ожидает следующей проверки')
             time.sleep(RETRY_PERIOD)
         except Exception as error:
-            logging.error(f'Сбой в работе программы: {error}')
+            if str(error) == 'Нет новых домашних работ':
+                logging.info(error)
+            else:
+                logging.error(f'Сбой в работе программы: {error}')
         finally:
             logging.info('Скрипт ожидает следующей проверки')
             time.sleep(RETRY_PERIOD)
