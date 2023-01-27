@@ -8,10 +8,15 @@ from os import getenv
 import requests
 import telegram
 from requests import RequestException
+from exceptions import APIErrors
+from telegram.error import (
+    BadRequest, NetworkError, TelegramError,
+    TimedOut, Unauthorized
+)
 
 PRACTICUM_TOKEN = getenv('YAP_TOKEN')
 TELEGRAM_TOKEN = getenv('TG_TOKEN')
-TELEGRAM_CHAT_ID = 132016857
+TELEGRAM_CHAT_ID = getenv('TG_CHAT_ID')
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -25,37 +30,38 @@ HOMEWORK_VERDICTS = {
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format=(
-        u'%(filename)s:%(lineno)d #%(levelname)-8s '
-        u'[%(asctime)s] - %(name)s - %(message)s'
-    ),
-    handlers=[
-        logging.StreamHandler(stream=sys.stdout),
-        logging.FileHandler(f'{BASE_DIR}/bot.log', mode='w')
-    ]
-)
 
-
-def check_tokens():
+def check_tokens() -> bool:
     """Проверяет наличие токенов."""
     return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN])
 
 
-def send_message(bot, message):
-    """Отправляет сообщение в телеграм."""
+def send_message(bot: telegram.Bot, message: str) -> None:
+    """Отправляет сообщение в телеграм
+    При попытке использовать TelegramError - тесты шлют в задницу и не пускают
+    далее. Поэтому пришлось использовать Exception."""
     try:
+        logging.debug(f'Пытаемся отправить сообщение: {message}')
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logging.debug(f'Сообщение отправлено: {message}')
-    except Exception:
-        logging.error('Ошибка отправки сообщения')
-        raise Exception('Ошибка отправки сообщения')
+    except BadRequest:
+        raise BadRequest('Неверный запрос к API телеграма')
+    except TimedOut:
+        raise TimedOut()
+    except NetworkError:
+        raise NetworkError('Ошибка сети при обращение к API телеграма')
+    except Unauthorized:
+        logging.critical('Проверьте токен телеграма и права бота')
+        raise Unauthorized('Неверный токен телеграма или права бота')
+    except Exception as error:
+        logging.error(f'Ошибка отправки сообщения: {error}')
+        raise KeyError(f'Ошибка отправки сообщения: {error}')
 
 
-def get_api_answer(timestamp):
+def get_api_answer(timestamp: int = 0) -> dict:
     """Запрашивает у API Яндекс.Практикум статус домашней работы."""
     try:
+        logging.debug(f'Пытаемся получить ответ API: {timestamp}')
         homework_statuses = requests.get(
             ENDPOINT,
             headers=HEADERS,
@@ -64,47 +70,43 @@ def get_api_answer(timestamp):
         logging.debug(f'Ответ API: {homework_statuses.text}')
 
         if homework_statuses.status_code != HTTPStatus.OK:
-            logging.error(f'Неверный ответ API: {homework_statuses.text}')
             raise RequestException(
                 f'Неверный ответ API: {homework_statuses.text}')
 
-    except Exception as error:
-        logging.error(f'Ошибка при запросе к API: {error}')
-        raise Exception(f'Ошибка при запросе к API: {error}')
     except ConnectionError:
-        logging.error('Сбой при запросе к эндпоинту')
         raise ConnectionError('Сбой при запросе к эндпоинту')
+    except APIErrors:
+        raise APIErrors('Ошибка при запросе к API')
+    except Exception as error:
+        raise Exception(f'Ошибка при запросе к API: {error}')
 
     try:
         return homework_statuses.json()
     except ValueError as error:
-        logging.error(f'Не удалось декодировать ответ API: {error}')
         raise ValueError(f'Не удалось декодировать ответ API: {error}')
 
 
-def check_response(response):
+def check_response(response: dict) -> dict:
     """Проверяет полученный ответ на корректность."""
+    logging.debug(f'Проверяем ответ {response} на корректность')
     if not isinstance(response, dict) or not isinstance(
             response.get('homeworks'), list):
-        logging.error('Неверный формат ответа API')
         raise TypeError('Неверный формат ответа API')
     if not response.get('homeworks'):
-        logging.debug('Нет новых домашних работ')
         raise TypeError('Нет новых домашних работ')
     logging.debug('Есть домашние работы')
     return response.get('homeworks')[0]
 
 
-def parse_status(homework):
+def parse_status(homework: dict) -> str:
     """Парсит ответ API и возвращает сообщение для телеграма."""
+    logging.debug(f'Парсим ответ API: {homework}')
     homework_name = homework.get('homework_name')
     if not homework_name:
-        logging.error('Не указано название домашней работы')
         raise KeyError('Не указано название домашней работы')
     hw_status = homework.get('status')
-    logging.info(f'Получен статус "{hw_status}" для работы ')
+    logging.debug(f'Получен статус "{hw_status}" для работы {homework_name}')
     if hw_status not in HOMEWORK_VERDICTS:
-        logging.error('Неизвестный статус домашней работы')
         raise ValueError('Неизвестный статус домашней работы')
     verdict = HOMEWORK_VERDICTS[hw_status]
     logging.debug(
@@ -113,7 +115,7 @@ def parse_status(homework):
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
-def main():
+def main() -> None:
     """Основная логика работы бота."""
     logging.info('Программа стартует')
     if not check_tokens():
@@ -129,6 +131,7 @@ def main():
             if 'current_date' in response:
                 timestamp = response['current_date']
             last_hw = check_response(response)
+            print(last_hw)
             if last_hw:
                 send_message(bot, parse_status(last_hw))
             logging.info('Скрипт ожидает следующей проверки')
@@ -141,4 +144,15 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format=(
+            u'%(filename)s:%(lineno)d #%(levelname)-8s '
+            u'[%(asctime)s] - %(name)s - %(message)s'
+        ),
+        handlers=[
+            logging.StreamHandler(stream=sys.stdout),
+            logging.FileHandler(f'{BASE_DIR}/bot.log', mode='w')
+        ]
+    )
     main()
