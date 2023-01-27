@@ -37,10 +37,9 @@ def check_tokens() -> bool:
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
-    """
-    Отправляет сообщение в телеграм
+    """Отправляет сообщение в телеграм.
     При попытке использовать TelegramError - тесты шлют в задницу и не пускают
-    далее. Поэтому пришлось использовать Exception.
+    далее. Поэтому пришлось использовать Exception
     """
     try:
         logging.debug(f'Пытаемся отправить сообщение: {message}')
