@@ -8,11 +8,11 @@ from os import getenv
 import requests
 import telegram
 from requests import RequestException
-from exceptions import APIErrors
 from telegram.error import (
-    BadRequest, NetworkError, TelegramError,
-    TimedOut, Unauthorized
+    BadRequest, NetworkError, TimedOut, Unauthorized
 )
+
+from exceptions import APIErrors
 
 PRACTICUM_TOKEN = getenv('YAP_TOKEN')
 TELEGRAM_TOKEN = getenv('TG_TOKEN')
@@ -37,9 +37,11 @@ def check_tokens() -> bool:
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
-    """Отправляет сообщение в телеграм
+    """
+    Отправляет сообщение в телеграм
     При попытке использовать TelegramError - тесты шлют в задницу и не пускают
-    далее. Поэтому пришлось использовать Exception."""
+    далее. Поэтому пришлось использовать Exception.
+    """
     try:
         logging.debug(f'Пытаемся отправить сообщение: {message}')
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
