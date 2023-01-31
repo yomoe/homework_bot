@@ -10,7 +10,7 @@ import telegram
 from requests import RequestException
 from telegram.error import BadRequest, NetworkError, TimedOut, Unauthorized
 
-from exceptions import APIErrors, CustomError
+from exceptions import APIErrors, TelegaCustomError
 
 PRACTICUM_TOKEN = getenv('YAP_TOKEN')
 TELEGRAM_TOKEN = getenv('TG_TOKEN')
@@ -31,7 +31,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def check_tokens() -> bool:
     """Проверяет наличие токенов."""
-    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN])
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
@@ -51,7 +51,7 @@ def send_message(bot: telegram.Bot, message: str) -> None:
         raise Unauthorized('Неверный токен телеграма или права бота')
     except telegram.TelegramError as error:
         logging.error(f'Ошибка телеграма {error}')
-        raise CustomError(f'Ошибка телеграма {error}')
+        raise TelegaCustomError(f'Ошибка телеграма {error}')
 
 
 def get_api_answer(timestamp: int = 0) -> dict:

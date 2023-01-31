@@ -3,6 +3,6 @@ class APIErrors(Exception):
     pass
 
 
-class CustomError(Exception):
+class TelegaCustomError(Exception):
     """Ошибка при работе с телеграмом."""
     pass
